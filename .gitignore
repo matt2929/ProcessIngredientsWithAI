@@ -1,3 +1,4 @@
 *.json
 *.csv
 archive/*
+!archive/RAW_recipes.csv
