@@ -244,12 +244,10 @@ if __name__ == '__main__':
     }
     ingredient_df = pd.DataFrame(ingredient_data)
 
-    print(f"Running Simple Definition....")
-    ingredient_df['isSimple'] = ingredient_df['ingredient'].head(1000).progress_apply(is_simple_ingredient_bart)
     print(f"Running Emoji Definition....")
     ingredient_df['emoji'] = ingredient_df['ingredient'].head(1000).progress_apply(produce_emoji_bart)
 
-    print(ingredient_df.head(100).to_json)
+    print(ingredient_df.head(1000).to_json)
 
     filtered_food_ingredient_mapping = 'key_map.json'
     emoji_ingredient_mapping = 'ingredients.json'
