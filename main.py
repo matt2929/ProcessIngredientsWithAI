@@ -256,3 +256,4 @@ if __name__ == '__main__':
     with open(filtered_food_ingredient_mapping, 'w') as dataFile, open(emoji_ingredient_mapping, 'w') as emojiMapping:
         json.dump(df.to_json(), dataFile)
         json.dump(ingredient_df['emoji'].to_json(), emojiMapping)
+                    
