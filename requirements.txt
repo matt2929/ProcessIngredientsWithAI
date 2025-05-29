@@ -1,0 +1,6 @@
+pandas
+tqdm
+ollama
+sentence-transformers
+emoji
+torch

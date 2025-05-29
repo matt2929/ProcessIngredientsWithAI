@@ -1,3 +1,14 @@
-torch>=2.1.0
-transformers>=4.41.0
-accelerate>=1.7.0
+# This line tells pip to look for PyTorch wheels on the CUDA 12.1 index
+# Adjust 'cu121' to 'cu118' or your specific CUDA version if different.
+--extra-index-url https://download.pytorch.org/whl/cu128
+
+torchvision
+torchaudio
+transformers==4.41.2
+torch
+accelerate
+safetensors>=0.4.2
+huggingface_hub>=0.22.2
+sentencepiece>=0.1.99
+protobuf>=3.20,<4.0
+

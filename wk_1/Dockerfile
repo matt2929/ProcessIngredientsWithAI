@@ -1,24 +1,31 @@
-# Use Python base image compatible with Apple Silicon
-FROM python:3.10-slim
+# Use official PyTorch image with CUDA and build tools
+FROM pytorch/pytorch:2.1.0-cuda11.8-cudnn8-devel
 
-# Set environment variables
+# Avoid Python bytecode, unbuffered output
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-# Install OS dependencies
+# Install system dependencies
 RUN apt-get update && apt-get install -y \
     git \
+    curl \
     libsndfile1 \
+    build-essential \
     && rm -rf /var/lib/apt/lists/*
 
-# Set working directory
+# Set work directory
 WORKDIR /app
 
-# Install Python dependencies
+# Copy only requirements first (for caching)
 COPY requirements.txt .
-RUN pip install --upgrade pip && pip install -r requirements.txt
 
-# Copy code
+# Optional: enable pip wheel cache for speed
+RUN --mount=type=cache,target=/root/.cache \
+    pip install --upgrade pip setuptools wheel \
+    && pip install -r requirements.txt
+
+# Then copy the rest of your code
 COPY . .
 
-CMD ["python", "generating_your_first_text.py"]
+# Set default command (edit if needed)
+CMD ["python", "main.py"]
