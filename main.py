@@ -161,9 +161,13 @@ emoji_vectors = model.encode(emoji_descriptions, convert_to_tensor=True)
 simple_proto = torch.mean(simple_vecs, dim=0)
 compound_proto = torch.mean(compound_vecs, dim=0)
 
+# Configure the ollama client to connect to your custom endpoint
+# Replace 'http://ollama:11434' with your actual endpoint if different
+client = ollama.Client(host='http://ollama:11434')
+
 
 def produce_emoji_ollama(ingredient_name: str) -> str:
-    response = ollama.chat(model='llama3', messages=[
+    response = client.chat(model='llama2', messages=[
         {
             'role': 'user',
             'content': f'return one emoji only that best describes the ingredient {ingredient_name}',
@@ -175,7 +179,7 @@ def produce_emoji_ollama(ingredient_name: str) -> str:
 
 
 def is_simple_ingredient_ollama(ingredient_name: str) -> str:
-    response = ollama.chat(model='llama3', messages=[
+    response = client.chat(model='llama3', messages=[
         {
             'role': 'user',
             'content': f'return the most general possible name for {ingredient_name} limit the response to only the ingredient name ;.l,kj;.l,kmjhgfd ',
@@ -245,7 +249,7 @@ if __name__ == '__main__':
     ingredient_df = pd.DataFrame(ingredient_data)
 
     print(f"Running Emoji Definition....")
-    ingredient_df['emoji'] = ingredient_df['ingredient'].head(1000).progress_apply(produce_emoji_bart)
+    ingredient_df['emoji'] = ingredient_df['ingredient'].head(1000).progress_apply(produce_emoji_ollama)
 
     print(ingredient_df.head(1000).to_json)
 
