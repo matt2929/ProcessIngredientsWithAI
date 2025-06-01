@@ -4,5 +4,6 @@ numpy
 tqdm
 scikit-learn
 torch >=2.7.0
-
+matplotlib
+seaborn
 
