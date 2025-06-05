@@ -1,145 +1,105 @@
-import os
-import numpy as np
-from datasets import load_dataset
-from sklearn.linear_model import LogisticRegression
-from sklearn.metrics import classification_report
-from sklearn.metrics.pairwise import cosine_similarity
-from sklearn.manifold import TSNE
-from sentence_transformers import SentenceTransformer
-import matplotlib.pyplot as plt
-import seaborn as sns
+from time import time
+
+from datasets import load_dataset, tqdm, ClassLabel
+from sklearn.metrics import classification_report, confusion_matrix
+from transformers import pipeline
+from transformers.pipelines.base import KeyDataset
+import torch
+import difflib
 
 # Emotion labels
-emotions_data_set = [
+emotions_labels = [
     "happiness", "neutral", "sadness", "surprise", "love", "fear", "confusion",
     "disgust", "desire", "shame", "sarcasm", "anger", "guilt"
 ]
 
-# Paths for caching
-CACHE_DIR = "./embedding_cache"
-os.makedirs(CACHE_DIR, exist_ok=True)
-X_train_path = os.path.join(CACHE_DIR, "X_train.npy")
-X_test_path = os.path.join(CACHE_DIR, "X_test.npy")
-y_train_path = os.path.join(CACHE_DIR, "y_train.npy")
-y_test_path = os.path.join(CACHE_DIR, "y_test.npy")
-pred_labels_path = os.path.join(CACHE_DIR, "pred_labels.npy")
+def match_label(text, label_set):
+    match = difflib.get_close_matches(text, label_set, n=1, cutoff=0.8)
+    if text=="joy":
+        return "happiness"
+    return match[0] if match else None
 
-# Load dataset
-data = load_dataset("boltuix/emotions-dataset", split="train")
-data = data.train_test_split(test_size=0.1, seed=42)
-train_data, test_data = data["train"], data["test"]
+def main():
+    # Load dataset
+    data = load_dataset("boltuix/emotions-dataset", split="train")
+    test_data = data.cast_column("Label", ClassLabel(names=emotions_labels))
 
-# Extract sentences and labels
-train_sentences = train_data["Sentence"]
-test_sentences = test_data["Sentence"]
-label_to_index = {label: idx for idx, label in enumerate(emotions_data_set)}
-index_to_label = {idx: label for label, idx in label_to_index.items()}
-train_labels = [label_to_index[label] for label in train_data["Label"]]
-test_labels = [label_to_index[label] for label in test_data["Label"]]
+    data = test_data.train_test_split(test_size=0.001, seed=42, stratify_by_column="Label")
+    _, test_data = data["train"], data["test"]
 
-# Load SentenceTransformer model
-model = SentenceTransformer("sentence-transformers/all-mpnet-base-v2")
+    # Train classifier
+    pipe = pipeline(
+        "text2text-generation",
+        model="google/flan-t5-base",
+        device=-1,
+        max_length=10,
+        num_beams=5,
+        early_stopping=True,
+        no_repeat_ngram_size=2
+    )
+    prompt = f"Pick only one of the following emotions: {', '.join(emotions_labels)}. Which best describes the following sentence? "
+    prompted_test_data = test_data.map(lambda example: {"t5": prompt + example["Sentence"]})
+    y_pred = []
+    total_failure = 0
+    for batch in tqdm(pipe(KeyDataset(prompted_test_data, "t5"), batch_size=2),
+                      total=len(prompted_test_data)):
 
-# Encode and cache embeddings
-if os.path.exists(X_train_path):
-    X_train = np.load(X_train_path)
-    X_test = np.load(X_test_path)
-    y_train = np.load(y_train_path)
-    y_test = np.load(y_test_path)
-else:
-    X_train = model.encode(train_sentences, show_progress_bar=True)
-    X_test = model.encode(test_sentences, show_progress_bar=True)
-    y_train = np.array(train_labels)
-    y_test = np.array(test_labels)
-
-    np.save(X_train_path, X_train)
-    np.save(X_test_path, X_test)
-    np.save(y_train_path, y_train)
-    np.save(y_test_path, y_test)
-
-# Train classifier
-clf = LogisticRegression(max_iter=1000, verbose=1)
-clf.fit(X_train, y_train)
-
-# Predict and cache
-if os.path.exists(pred_labels_path):
-    y_pred = np.load(pred_labels_path)
-else:
-    y_pred = clf.predict(X_test)
-    np.save(pred_labels_path, y_pred)
+        torch.mps.empty_cache()
+        for output in batch:
+            text = output["generated_text"].strip().lower()
+            pred_label = match_label(text, emotions_labels)
+            if not pred_label:
+                total_failure += 1
+                y_pred.append(text)  # Still append raw for analysis
+                print(f"{text}")
+            else:
+                y_pred.append(pred_label)
+    print(f"Couldn't figure out: {total_failure}/{len(prompted_test_data)}")
+    y_true_str = [emotions_labels[label] if isinstance(label, int) else label for label in test_data['Label']]
+    evaluate_performance(y_true_str, y_pred, test_data["Sentence"])
 
 
 # Evaluate performance
-def evaluate_performance(y_true, y_pred):
-    print("\nClassification Report:")
-    print(classification_report(
-        y_true, y_pred,
-        target_names=emotions_data_set
-    ))
+def evaluate_performance(y_true, y_pred, test_sentences):
+    print("\n📊 Classification Report:\n")
+    performance = classification_report(y_true, y_pred, labels=emotions_labels)
+    print(performance)
 
-    print("\nMost confused pairs:")
-    confusion = {}
-    for true, pred in zip(y_true, y_pred):
-        if true != pred:
-            key = (true, pred)
-            confusion[key] = confusion.get(key, 0) + 1
-    most_confused = sorted(confusion.items(), key=lambda x: x[1], reverse=True)
-    for (true, pred), count in most_confused[:5]:
-        print(f"{emotions_data_set[true]} → {emotions_data_set[pred]}: {count} times")
+    cm = confusion_matrix(y_true, y_pred, labels=emotions_labels)
 
-    # Print two example sentences from most confused class
-    if most_confused:
-        most_confused_true, most_confused_pred = most_confused[0][0]
-        example_idxs = [i for i, (t, p) in enumerate(zip(y_test, y_pred))
-                        if t == most_confused_true and p == most_confused_pred][:2]
-        print(f"\nExample sentences where {emotions_data_set[most_confused_true]} "
-              f"was misclassified as {emotions_data_set[most_confused_pred]}:")
-        for i in example_idxs:
-            print(f" - {test_sentences[i]}")
+    print("\n🔁 Most Frequent Confusions:\n")
+    for i, label in enumerate(emotions_labels):
+        row = cm[i].copy()
+        row[i] = 0  # Ignore correct predictions
+        if row.sum() == 0:
+            print(f"{label}: No confusions.")
+        else:
+            most_confused_idx = row.argmax()
+            confused_with = emotions_labels[most_confused_idx]
+            print(f"{label} → {confused_with} ({row[most_confused_idx]} times)")
 
-
-evaluate_performance(y_test, y_pred)
-
-
-# Visualize classification
-def visualize_misclassified(X_test, true_labels, pred_labels, title="Misclassified Highlighted"):
-    print("🧪 Reducing dimensions for visualization...")
-    tsne = TSNE(n_components=2, random_state=42, perplexity=30)
-    reduced = tsne.fit_transform(X_test)
-
-    # Convert to numpy arrays of label strings
-    true_str = np.array([emotions_data_set[i] for i in true_labels])
-    pred_str = np.array([emotions_data_set[i] for i in pred_labels])
-    is_misclassified = true_labels != pred_labels
-
-    plt.figure(figsize=(14, 10))
-
-    # All points
-    sns.scatterplot(
-        x=reduced[:, 0],
-        y=reduced[:, 1],
-        hue=true_str,
-        palette="tab20",
-        alpha=0.4,
-        s=30,
-        legend='brief'
-    )
-
-    # Misclassified overlay
-    plt.scatter(
-        reduced[is_misclassified, 0],
-        reduced[is_misclassified, 1],
-        facecolors='none',
-        edgecolors='red',
-        linewidths=1.5,
-        s=80,
-        label='Misclassified'
-    )
-
-    plt.title(title)
-    plt.legend(loc='best', bbox_to_anchor=(1.05, 1))
-    plt.tight_layout()
-    plt.show()
+            print(f"Sample sentances where we expected {label} but got {confused_with}\n")
+            for sample in miss_sampler(y_true=y_true,
+                                       y_pred=y_pred,
+                                       confused_with=confused_with,
+                                       sample_from_label=label,
+                                       test_sentences=test_sentences
+                                       ):
+                print("\t" + ("*" * 10))
+                print(f"\t{sample}")
+                print("\t" + ("*" * 10))
+            print("===" * 10)
 
 
-visualize_misclassified(X_test, y_test, y_pred)
+def miss_sampler(y_true, y_pred, confused_with, sample_from_label, test_sentences):
+    sample_size = 2
+    sampler = []
+    for i, actual_label in enumerate(y_true):
+        if y_pred[i] == confused_with and actual_label == sample_from_label:
+            sampler.append(test_sentences[i])
+            if len(sampler) >= sample_size:
+                break
+    return sampler
+
+
+main()
