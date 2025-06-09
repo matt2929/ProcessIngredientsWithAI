@@ -1,0 +1,16 @@
+
+transformers
+datasets
+numpy
+tqdm
+scikit-learn
+torch
+matplotlib
+seaborn
+umap-learn
+hdbscan
+sentence-transformers
+bertopic
+plotly==5.13.1
+openai
+ollama

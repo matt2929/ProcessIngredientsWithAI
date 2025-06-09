@@ -1,10 +1,14 @@
 build and run docker container
 
 ```shell
+ source env/bin/activate\n
+ python --version
+ cd cluster_topic_modeling_emotions
+ pip install -r requirements.txt
 
 ```
 
-```
+```shell
 docker network create ollama-net 
 docker run -d -v ollama:/root/.ollama -p 11434:11434 --name ollama ollama/ollama
 
