@@ -14,3 +14,4 @@ bertopic
 plotly==5.13.1
 openai
 ollama
+google-generativeai
