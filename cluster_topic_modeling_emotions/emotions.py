@@ -102,7 +102,7 @@ def load_or_build_embeddings() -> Tuple[Tensor, list]:
         embeddings = np.load(EMBEDDINGS_FILE)
     else:
         print("Computing embeddings from scratch...")
-        dataset = load_dataset("Salesforce/wikitext", "wikitext-2-v1", split="test")
+        dataset = load_dataset("Salesforce/wikitext", "wikitext-2-v1", split="train")
         raw_lines = dataset["text"]
         text = "\n".join(raw_lines)
         paragraphs = [p.strip() for p in text.split("\n\n") if len(p.strip()) > 50]
@@ -145,7 +145,7 @@ def visualize_3d_topics(sentences, embeddings, topic_assignment, topic_model):
     if len(df_plot) > 3000:
         print(f"⚠️ Warning: {len(df_plot)} points may slow down visualization")
 
-    fig = px.scatter_3d(df_plot, x="x", y="y", z="z",
+    fig = px.scatter(df_plot, x="x", y="y",
                         color="topic",
                         title="3D Topic Visualization")
     fig.update_traces(marker=dict(size=3))
