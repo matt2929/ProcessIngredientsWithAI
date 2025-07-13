@@ -1,0 +1,16 @@
+# PyTorch with MPS (Apple Silicon) backend, pinned version
+torch==2.7.1
+torchvision
+torchaudio
+
+# Hugging Face Transformers, pinned version
+transformers==4.47.0
+
+# Acceleration utils
+accelerate>=0.26.0
+optimum>=1.12.0
+
+
+
+# Hugging Face Hub tools (optional but useful for caching, downloads)
+huggingface_hub
