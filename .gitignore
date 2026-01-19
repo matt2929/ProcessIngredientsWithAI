@@ -2,3 +2,8 @@
 *.csv
 archive/*
 !archive/RAW_recipes.csv
+*.npy
+*.html
+env/*
+*.pyc
+.DS_Store

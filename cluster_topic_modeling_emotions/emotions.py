@@ -10,8 +10,9 @@ from tqdm import tqdm
 from bertopic.representation._utils import truncate_document, validate_truncate_document_parameters
 
 from bertopic.representation._base import BaseRepresentation
-from datasets import load_dataset
 from bertopic.representation import KeyBERTInspired
+from datasets import load_dataset
+
 from sentence_transformers import SentenceTransformer
 from sklearn.cluster import HDBSCAN
 from scipy.sparse import csr_matrix
